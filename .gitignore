@@ -34,3 +34,4 @@ lerna-debug.log*
 # data & allowlist
 data*/
 allowlist.json
+blocklist.json
