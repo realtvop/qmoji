@@ -9,6 +9,7 @@
   "napcatWs": "ws://127.0.0.1:3001",
   "napcatToken": "token",
   "admins": [123456789],
+  "private": false, // 当为 true 时,仅处理 admins 列表中用户的消息
   "prefixes": {
     "save": ["#"], // 须为单字符
     "groupSave": ["%"], // 须为单字符

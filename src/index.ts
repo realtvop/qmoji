@@ -201,6 +201,9 @@ napcat.on('message', async (context: AllHandlers['message']) => {
     ) {
       return;
     }
+    if (config.private && !config.admins?.includes(context.user_id)) {
+      return;
+    }
     const message = context.message.find((m) => m.type === 'text');
     if (message) {
       const text = message.data.text;
