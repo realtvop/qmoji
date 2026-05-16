@@ -16,6 +16,10 @@
     "use": ["."], // 须为单字符
     "utils": ["qmoji"]
   },
-  "reactOnNotFound": true
+  "reactOnNotFound": true,
+  "reconnect": {
+    "enable": false,
+    "interval": 600
+  }
 }
 ```

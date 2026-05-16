@@ -176,18 +176,44 @@ const send = async (context: AllHandlers['message'], ...segments: SendMessageSeg
 };
 
 const socketClose = createSignallable<void>();
+let isShuttingDown = false;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+const reconnectConfig = config.reconnect;
+const reconnectInterval = (reconnectConfig?.interval ?? 600) * 1000;
+
+const scheduleReconnect = () => {
+  if (isShuttingDown) return;
+  console.log(`[NapCat] Reconnecting in ${reconnectInterval / 1000}s...`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    napcat.connect();
+  }, reconnectInterval);
+};
 
 napcat.on('socket.open', () => {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   console.log('[NapCat] Connected.');
 });
 
 napcat.on('socket.close', () => {
   console.log('[NapCat] Disconnected.');
-  try {
-    socketClose.signal(undefined);
-  } catch {
-    // ignore if already resolved
+  if (isShuttingDown) {
+    try {
+      socketClose.signal(undefined);
+    } catch {
+      // ignore if already resolved
+    }
+  } else if (reconnectConfig?.enable) {
+    scheduleReconnect();
   }
+});
+
+napcat.on('socket.error', (ctx) => {
+  console.error('[NapCat] Error:', JSON.stringify(ctx));
 });
 
 napcat.on('message', async (context: AllHandlers['message']) => {
@@ -898,6 +924,11 @@ process.on('SIGINT', async () => {
     process.exit(1);
   }
   shutdownInitiated = true;
+  isShuttingDown = true;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   console.log('\nGracefully shutting down...');
 
   napcat.disconnect();
