@@ -182,8 +182,16 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 const reconnectConfig = config.reconnect;
 const reconnectInterval = (reconnectConfig?.interval ?? 600) * 1000;
 
+const cancelReconnect = () => {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+};
+
 const scheduleReconnect = () => {
   if (isShuttingDown) return;
+  cancelReconnect();
   console.log(`[NapCat] Reconnecting in ${reconnectInterval / 1000}s...`);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
@@ -191,29 +199,33 @@ const scheduleReconnect = () => {
   }, reconnectInterval);
 };
 
-napcat.on('socket.open', () => {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
+const signalSocketClose = () => {
+  try {
+    socketClose.signal(undefined);
+  } catch {
+    // ignore if already resolved
   }
+};
+
+napcat.on('socket.open', () => {
+  cancelReconnect();
   console.log('[NapCat] Connected.');
 });
 
 napcat.on('socket.close', () => {
   console.log('[NapCat] Disconnected.');
   if (isShuttingDown) {
-    try {
-      socketClose.signal(undefined);
-    } catch {
-      // ignore if already resolved
-    }
+    signalSocketClose();
   } else if (reconnectConfig?.enable) {
     scheduleReconnect();
+  } else {
+    signalSocketClose();
   }
 });
 
 napcat.on('socket.error', (ctx) => {
-  console.error('[NapCat] Error:', JSON.stringify(ctx));
+  const info = ctx.error_type === 'response_error' ? ctx.info : ctx.errors;
+  console.error('[NapCat] Error:', JSON.stringify(info));
 });
 
 napcat.on('message', async (context: AllHandlers['message']) => {
@@ -925,10 +937,7 @@ process.on('SIGINT', async () => {
   }
   shutdownInitiated = true;
   isShuttingDown = true;
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
+  cancelReconnect();
   console.log('\nGracefully shutting down...');
 
   napcat.disconnect();
